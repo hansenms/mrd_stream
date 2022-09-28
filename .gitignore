@@ -1,4 +1,5 @@
 build/
+build_gt/
 *.ipynb
 *.bin
 *.h5

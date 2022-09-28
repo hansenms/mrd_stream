@@ -3,7 +3,8 @@
 {
   "name": "mrd_stream",
   "build": {
-    "dockerfile": "Dockerfile",
+    "dockerfile": "../Dockerfile",
+    "target": "devcontainer",
     "context": ".."
   },
   "runArgs": ["--cap-add=SYS_PTRACE", "--security-opt", "seccomp=unconfined"],
