@@ -109,10 +109,10 @@ void write_image(ISMRMRD::Image<float> &im, std::ostream &output_stream)
     write_message_id(output_stream, MRD_IMAGE);
     ISMRMRD::ImageHeader h = im.getHead();
     output_stream.write(reinterpret_cast<char *>(&h), sizeof(ISMRMRD::ImageHeader));
-    if (h.attribute_string_len)
+    uint64_t attr_length = im.getAttributeStringLength();
+    output_stream.write(reinterpret_cast<char *>(&attr_length), sizeof(uint64_t));
+    if (attr_length)
     {
-        uint64_t attr_length = im.getAttributeStringLength();
-        output_stream.write(reinterpret_cast<char *>(&attr_length), sizeof(uint64_t));
         output_stream.write(im.getAttributeString(), h.attribute_string_len);
     }
     output_stream.write(reinterpret_cast<char *>(im.getDataPtr()), im.getDataSize());
