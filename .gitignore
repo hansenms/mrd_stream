@@ -1,0 +1,5 @@
+build/
+*.ipynb
+*.bin
+*.h5
+.vscode/
