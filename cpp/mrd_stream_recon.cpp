@@ -1,7 +1,6 @@
 #include <exception>
 #include <iostream>
 #include "ismrmrd/ismrmrd.h"
-#include "ismrmrd/dataset.h"
 #include "ismrmrd/xml.h"
 #include "fftw3.h"
 #include "fmt/core.h"
@@ -123,16 +122,6 @@ int main()
 
     auto hdr = read_header(std::cin);
 
-    // Let's print some information from the header
-    if (hdr.version)
-    {
-        std::cerr << "XML Header version: " << hdr.version << std::endl;
-    }
-    else
-    {
-        std::cerr << "XML Header unspecified version." << std::endl;
-    }
-
     if (hdr.encoding.size() != 1)
     {
         throw std::runtime_error("This simple reconstruction application only supports one encoding space");
@@ -165,10 +154,6 @@ int main()
         if (!nCoils)
         {
             nCoils = acq.active_channels();
-
-            std::cerr << "Encoding Matrix Size        : [" << e_space.matrixSize.x << ", " << e_space.matrixSize.y << ", " << e_space.matrixSize.z << "]" << std::endl;
-            std::cerr << "Reconstruction Matrix Size  : [" << r_space.matrixSize.x << ", " << r_space.matrixSize.y << ", " << r_space.matrixSize.z << "]" << std::endl;
-            std::cerr << "Number of Channels          : " << nCoils << std::endl;
 
             // Allocate a buffer for the data
             std::vector<size_t> dims;
@@ -205,9 +190,10 @@ int main()
     ISMRMRD::Image<float> img_out(r_space.matrixSize.x, r_space.matrixSize.y, 1, 1);
     std::fill(img_out.begin(), img_out.end(), 0.0f);
 
-    // f there is oversampling in the readout direction remove it
-    // Take the sqrt of the sum of squares
+    // if there is oversampling in the readout direction remove it
     uint16_t offset = ((e_space.matrixSize.x - r_space.matrixSize.x) >> 1);
+
+    // Take the sqrt of the sum of squares
     for (uint16_t y = 0; y < r_space.matrixSize.y; y++)
     {
         for (uint16_t x = 0; x < r_space.matrixSize.x; x++)
@@ -220,7 +206,6 @@ int main()
         }
     }
 
-    // The following are extra guidance we can put in the image header
     img_out.setImageType(ISMRMRD::ISMRMRD_IMTYPE_MAGNITUDE);
     img_out.setSlice(0);
     img_out.setFieldOfView(r_space.fieldOfView_mm.x, r_space.fieldOfView_mm.y, r_space.fieldOfView_mm.z);
