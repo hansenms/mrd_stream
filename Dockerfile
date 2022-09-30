@@ -7,6 +7,10 @@
 # subsequent stage and normalize the permissions.
 #########################################################
 
+ARG USERNAME="vscode"
+ARG USER_UID=1000
+ARG USER_GID=$USER_UID
+
 FROM mcr.microsoft.com/oss/busybox/busybox:1.33.1 as file-normalizer
 
 COPY environment.yml \
@@ -22,10 +26,10 @@ RUN chmod -R 555 /data/
 FROM mcr.microsoft.com/vscode/devcontainers/base:0.201.8-focal AS devcontainer
 
 # Install needed packages and setup non-root user.
-ARG USERNAME="vscode"
+ARG USERNAME
+ARG USER_UID
+ARG USER_GID
 
-ARG USER_UID=1000
-ARG USER_GID=$USER_UID
 ARG CONDA_GID=900
 ARG CONDA_ENVIRONMENT_NAME=mrd_stream
 ARG VSCODE_DEV_CONTAINERS_SCRIPT_LIBRARY_VERSION=v0.229.0
@@ -33,12 +37,6 @@ ARG VSCODE_DEV_CONTAINERS_SCRIPT_LIBRARY_VERSION=v0.229.0
 RUN apt-get update && apt-get install -y \
     libc6-dbg \
     && rm -rf /var/lib/apt/lists/*
-
-# Enable non-root Docker access in container
-ARG ENABLE_NONROOT_DOCKER="true"
-# Use the OSS Moby CLI instead of the licensed Docker CLI
-ARG USE_MOBY="false"
-RUN script=$(curl -fsSL "https://raw.githubusercontent.com/microsoft/vscode-dev-containers/${VSCODE_DEV_CONTAINERS_SCRIPT_LIBRARY_VERSION}/script-library/docker-debian.sh") && bash -c "$script" -- "${ENABLE_NONROOT_DOCKER}" "/var/run/docker-host.sock" "/var/run/docker.sock" "${USERNAME}" "${USE_MOBY}"
 
 # Setting the ENTRYPOINT to docker-init.sh will configure non-root access to
 # the Docker socket if "overrideCommand": false is set in devcontainer.json.
@@ -86,3 +84,31 @@ ENV CMAKE_GENERATOR=Ninja
 RUN mkdir -p /home/vscode/.local/share/CMakeTools \
     && echo '[{"name":"GCC-11","compilers":{"C":"/opt/conda/envs/mrd_stream/bin/x86_64-conda_cos6-linux-gnu-gcc","CXX":"/opt/conda/envs/mrd_stream/bin/x86_64-conda_cos6-linux-gnu-g++"}}]' > /home/vscode/.local/share/CMakeTools/cmake-tools-kits.json \
     && chown vscode:conda /home/vscode/.local/share/CMakeTools/cmake-tools-kits.json
+
+
+FROM devcontainer AS cppruntime
+ARG USER_UID
+USER ${USER_UID}
+WORKDIR /opt
+RUN sudo chown $USER_UID:$USER_GID /opt && mkdir -p /opt/code/mrd_stream
+COPY --chown=$USER_UID:conda . /opt/code/mrd_stream
+SHELL ["/bin/bash", "-c"]
+RUN . /opt/conda/etc/profile.d/conda.sh && umask 0002 && conda activate mrd_stream && sh -x && \
+    cd /opt/code/mrd_stream && \
+    mkdir build && \
+    cd build && \
+    cmake ../ -GNinja -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX && \
+    ninja && \
+    ninja install
+RUN chmod +x /opt/code/mrd_stream/cpp/entrypoint.sh
+ENTRYPOINT [ "/opt/code/mrd_stream/cpp/entrypoint.sh" ]
+
+FROM devcontainer AS pythonruntime
+ARG USER_UID
+USER ${USER_UID}
+WORKDIR /opt
+RUN sudo chown $USER_UID:$USER_GID /opt && mkdir -p /opt/code/mrd_stream
+COPY --chown=$USER_UID:conda . /opt/code/mrd_stream
+SHELL ["/bin/bash", "-c"]
+RUN chmod +x /opt/code/mrd_stream/python/python_entrypoint.sh
+ENTRYPOINT [ "/opt/code/mrd_stream/python/python_entrypoint.sh" ]
