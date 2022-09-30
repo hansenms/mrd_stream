@@ -21,3 +21,11 @@ add_executable(mrd_stream_recon cpp/mrd_stream_recon.cpp)
 target_include_directories(mrd_stream_recon PRIVATE ${FFTW3_INCLUDE_DIR})
 target_link_libraries(mrd_stream_recon ${FFTW3_LIBRARIES} ISMRMRD::ISMRMRD fmt)
 install(TARGETS mrd_stream_recon DESTINATION bin)
+
+add_executable(mrdhdf5_to_stream cpp/mrdhdf5_to_stream.cpp)
+target_link_libraries(mrdhdf5_to_stream ISMRMRD::ISMRMRD fmt)
+install(TARGETS mrdhdf5_to_stream DESTINATION bin)
+
+add_executable(stream_to_mrdhdf5 cpp/stream_to_mrdhdf5.cpp)
+target_link_libraries(stream_to_mrdhdf5 ISMRMRD::ISMRMRD fmt)
+install(TARGETS stream_to_mrdhdf5 DESTINATION bin)

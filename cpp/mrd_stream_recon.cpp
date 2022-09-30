@@ -1,13 +1,8 @@
-#include <exception>
 #include <iostream>
-#include "ismrmrd/ismrmrd.h"
-#include "ismrmrd/xml.h"
 #include "fftw3.h"
 #include "fmt/core.h"
 
-class close_stream : std::exception
-{
-};
+#include "mrd_serialization.hpp"
 
 // Helper function for the FFTW library
 void circshift(complex_float_t *out, const complex_float_t *in, int xdim, int ydim, int xshift, int yshift)
@@ -24,98 +19,6 @@ void circshift(complex_float_t *out, const complex_float_t *in, int xdim, int yd
 }
 
 #define fftshift(out, in, x, y) circshift(out, in, x, y, (x / 2), (y / 2))
-
-const unsigned short MRD_HEADER = 3;
-const unsigned short MRD_CLOSE = 4;
-const unsigned short MRD_ACQUISION = 1008;
-const unsigned short MRD_IMAGE = 1022;
-
-unsigned short read_message_id(std::istream &input_stream)
-{
-    unsigned short id;
-    input_stream.read(reinterpret_cast<char *>(&id), sizeof(unsigned short));
-    return id;
-}
-
-void write_message_id(std::ostream &output_stream, unsigned short id)
-{
-    output_stream.write(reinterpret_cast<char *>(&id), sizeof(unsigned short));
-}
-
-void expect_id(std::istream &input_stream, unsigned short expected_id)
-{
-    auto id = read_message_id(input_stream);
-    if (id == MRD_CLOSE)
-    {
-        throw close_stream();
-    }
-
-    if (id != expected_id)
-    {
-        throw std::runtime_error(fmt::format("Invalid id {} received, expected {}", id, expected_id));
-    }
-}
-
-ISMRMRD::IsmrmrdHeader read_header(std::istream &input_stream)
-{
-    expect_id(input_stream, MRD_HEADER);
-    uint32_t hdr_size = 0;
-    input_stream.read(reinterpret_cast<char *>(&hdr_size), sizeof(uint32_t));
-    ISMRMRD::IsmrmrdHeader hdr;
-    if (hdr_size > 0)
-    {
-        std::vector<char> data(hdr_size);
-        input_stream.read(data.data(), hdr_size);
-        ISMRMRD::deserialize(std::string(data.data(), data.size()).c_str(), hdr);
-    }
-    else
-    {
-        throw std::runtime_error(fmt::format("Expected size > 0, got: {}", hdr_size));
-    }
-
-    return hdr;
-}
-
-void write_header(ISMRMRD::IsmrmrdHeader &hdr, std::ostream &output_stream)
-{
-    std::stringstream str;
-    ISMRMRD::serialize(hdr, str);
-    auto as_str = str.str();
-    uint32_t size = as_str.size();
-    write_message_id(output_stream, MRD_HEADER);
-    output_stream.write(reinterpret_cast<const char *>(&size), sizeof(uint32_t));
-    output_stream.write(as_str.c_str(), as_str.size());
-}
-
-ISMRMRD::Acquisition read_acquisition(std::istream &input_stream)
-{
-    expect_id(input_stream, MRD_ACQUISION);
-    ISMRMRD::AcquisitionHeader ahead;
-    input_stream.read(reinterpret_cast<char *>(&ahead), sizeof(ISMRMRD::AcquisitionHeader));
-    ISMRMRD::Acquisition acq;
-    acq.setHead(ahead);
-    if (ahead.trajectory_dimensions)
-    {
-        input_stream.read(reinterpret_cast<char *>(acq.getTrajPtr()), ahead.trajectory_dimensions * ahead.number_of_samples * sizeof(float));
-    }
-
-    input_stream.read(reinterpret_cast<char *>(acq.getDataPtr()), ahead.number_of_samples * ahead.active_channels * 2 * sizeof(float));
-    return acq;
-}
-
-void write_image(ISMRMRD::Image<float> &im, std::ostream &output_stream)
-{
-    write_message_id(output_stream, MRD_IMAGE);
-    ISMRMRD::ImageHeader h = im.getHead();
-    output_stream.write(reinterpret_cast<char *>(&h), sizeof(ISMRMRD::ImageHeader));
-    uint64_t attr_length = im.getAttributeStringLength();
-    output_stream.write(reinterpret_cast<char *>(&attr_length), sizeof(uint64_t));
-    if (attr_length)
-    {
-        output_stream.write(im.getAttributeString(), h.attribute_string_len);
-    }
-    output_stream.write(reinterpret_cast<char *>(im.getDataPtr()), im.getDataSize());
-}
 
 int main()
 {
