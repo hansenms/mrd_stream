@@ -57,7 +57,13 @@ or
 mrdhdf5_to_stream testdata.h5 | docker run -i mrd_stream_python_recon | stream_to_mrdhdf5 dockerpythonimages.h5
 ```
 
-# Remote reconstruction
+The latest versions of the Gadgetron also support streaming reconstruction, e.g.:
+
+```bash
+mrdhdf5_to_stream testdata.h5 | docker run -i ghcr.io/gadgetron/gadgetron/gadgetron_ubuntu_rt_nocuda:latest --from_stream -c default.xml | stream_to_mrdhdf5 dockergtimages.h5
+```
+
+## Remote reconstruction
 
 Tools like the [Gadgetron](https://github.com/gadgetron/gadgetron) have traditionally used sockets to send the imaging data and have used the same socket for configuring the reconstruction. In the streaming reconstruction we use stdin and stdout exclusively for data transmission, but that doesn't prevent you from transmitting the data over the network if your reconstruction should run on a remote system. To enable this you can use a socket relay such as [socat](https://linux.die.net/man/1/socat).
 
@@ -69,19 +75,19 @@ socat TCP4-LISTEN:9222 "EXEC:mrd_stream_recon"
 
 and on the client side:
 
-```
+```bash
 mrdhdf5_to_stream testdata.h5 | socat -t30 - TCP4:server.mydomain.com:9222 | stream_to_mrdhdf5 socketimages.h5
 ```
 
 The `-t30` switch tells socat to wait 30 seconds from when the input stream closes to when it should close the output stream if it is not closed yet. Since we will finish sending data before we get all the images back, we need a longer timeout than the standard 0.5s.
 
-Often, you would want to establish the connection with the remote server using something like SSH. This workflow is relatively easily achieved. For example if we want to run the `mrd_stream_python_recon` on remote server names `my-remote-server` (where you have SSH access), you would run:
+Often, you would want to establish the connection with the remote server using something like SSH. This workflow is relatively easily achieved. For example if we want to run the docker image `mrd_stream_python_recon` on the remote server named `my-remote-server` (where you have SSH access), you would run:
 
 ```bash
 ssh -L 9002:localhost:9223 my-remote-server socat TCP4-LISTEN:9223 \"EXEC:docker run -i mrd_stream_python_recon\"
 ```
 
-This will ask socat (on the remote system) to listen on port 9223 and forward to a docker container when a connection comes in, but we will forward our local port 9002 to port 9223 on the remote system. We can now run the recon with:
+This will ask socat (on the remote system) to listen on port 9223 and forward to a docker container when a connection comes in, but we will also forward our local port 9002 to port 9223 on the remote system. We can now run the recon with:
 
 ```bash
 mrdhdf5_to_stream -i testdata.h5 | socat -t30 - TCP:localhost:9002 | mrdhdf5_to_stream -o remoteimages.h5
